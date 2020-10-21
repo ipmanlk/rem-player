@@ -98,15 +98,19 @@ export class RemPlayer extends EventEmitter {
 	}
 
 	play(): void | PlayerError {
-		if (this.dispatcher) {
-			if (this.state === "paused") {
-				this.resume();
-				this.state = "playing";
-			} else {
-				return { code: "queueNotPaused" };
-			}
+		if (this.state === "stopped" && this.queue.length > 0) {
+			this.playTrack();
 		} else {
-			return { code: "noDispatcher" };
+			if (this.dispatcher) {
+				if (this.state === "paused") {
+					this.resume();
+					this.state = "playing";
+				} else {
+					return { code: "queueNotPaused" };
+				}
+			} else {
+				return { code: "noDispatcher" };
+			}
 		}
 	}
 
