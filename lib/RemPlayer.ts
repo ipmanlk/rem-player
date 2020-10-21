@@ -1,5 +1,10 @@
 import { EventEmitter } from "events";
-import { VoiceConnection, TextChannel, StreamDispatcher } from "discord.js";
+import {
+	VoiceConnection,
+	TextChannel,
+	StreamDispatcher,
+	VoiceChannel,
+} from "discord.js";
 import ytdl from "ytdl-core-discord";
 import * as youtube from "./sites/youtube";
 import * as themesMoe from "./sites/themes.moe";
@@ -39,6 +44,10 @@ export class RemPlayer extends EventEmitter {
 
 	getTextChannel(): TextChannel {
 		return this.textChannel;
+	}
+
+	getVoiceChannel(): VoiceChannel {
+		return this.voiceConnection.channel;
 	}
 
 	playYoutubeTracks(keywordOrUrl: string): void | PlayerError {
