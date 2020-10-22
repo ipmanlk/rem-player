@@ -1,6 +1,6 @@
 import fetch from "node-fetch";
 import cheerio from "cheerio";
-import ytdl from "ytdl-core-discord";
+import ytdl from "discord-ytdl-core";
 import ytsr from "ytsr";
 import ytpl from "ytpl";
 import * as cache from "../utils/cache";

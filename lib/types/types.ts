@@ -17,6 +17,7 @@ export interface Track {
 	name: string;
 	type: string;
 	url: string;
+	seekedTime?: number;
 }
 
 export interface DatabaseRecord {

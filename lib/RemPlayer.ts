@@ -5,7 +5,7 @@ import {
 	StreamDispatcher,
 	VoiceChannel,
 } from "discord.js";
-import ytdl from "ytdl-core-discord";
+import ytdl from "discord-ytdl-core";
 import * as youtube from "./sites/youtube";
 import * as themesMoe from "./sites/themes.moe";
 import { moveIndex } from "./utils/utils";
@@ -62,7 +62,7 @@ export class RemPlayer extends EventEmitter {
 				// push to global tracks
 				this.addTracksToQueue(track);
 				// start playing first track if state is stopped
-				if (this.state === "stopped") this.playTrack();
+				if (this.state === "stopped") this.checkoutQueue();
 			})
 			.catch((e) => {
 				this.emit("youtubeFailed");
@@ -80,7 +80,7 @@ export class RemPlayer extends EventEmitter {
 			.getTracks(animeName)
 			.then((tracks) => {
 				this.addTracksToQueue(tracks);
-				if (!this.state) this.playTrack();
+				if (!this.state) this.checkoutQueue();
 			})
 			.catch((e) => {
 				this.emit("themesMoeFailed");
@@ -108,7 +108,7 @@ export class RemPlayer extends EventEmitter {
 
 	play(): void | PlayerError {
 		if (this.state === "stopped" && this.queue.length > 0) {
-			this.playTrack();
+			this.checkoutQueue();
 		} else {
 			if (this.dispatcher) {
 				if (this.state === "paused") {
@@ -170,9 +170,9 @@ export class RemPlayer extends EventEmitter {
 		if (this.dispatcher) {
 			if (this.queue.length > 0) {
 				if (position) {
-					this.playTrack(position);
+					this.checkoutQueue(position);
 				} else {
-					this.playTrack();
+					this.checkoutQueue();
 					this.emit("trackSkipped");
 				}
 			} else {
@@ -193,7 +193,18 @@ export class RemPlayer extends EventEmitter {
 		return this.loopQueue;
 	}
 
-	private async playTrack(position: number | false = false): Promise<void> {
+	async seek(seekTime: number): Promise<void | PlayerError> {
+		if (!this.dispatcher) {
+			return { code: "noDispatcher" };
+		}
+
+		const track = this.currentTrack;
+		if (!track) return { code: "trackNotFound" };
+
+		this.playTrack(track, seekTime);
+	}
+
+	private async checkoutQueue(position: number | false = false): Promise<void> {
 		let track: Track;
 
 		if (!position) {
@@ -203,7 +214,7 @@ export class RemPlayer extends EventEmitter {
 			// when track is undefined for some reason, jump to next one
 			if (!firstItem) {
 				this.emit("error", "First track doesn't exist in the queue!.");
-				this.playTrack();
+				this.checkoutQueue();
 				return;
 			}
 
@@ -215,25 +226,60 @@ export class RemPlayer extends EventEmitter {
 			this.queue = this.queue.filter((t, index) => index !== trackIndex);
 		}
 
+		// on error, jump to next track
+		try {
+			this.playTrack(track);
+		} catch (error) {
+			this.checkoutQueue();
+		}
+
 		// push track back to the end when loopQueue=true
 		if (this.loopQueue) this.queue.push(track);
+	}
 
-		// set current track
-		this.currentTrack = track;
-
-		// remove existing dispatcher if there is one
-		if (this.dispatcher) this.dispatcher.destroy();
-
-		if (track.type === "Youtube") {
+	private playTrack(track: Track, seekTime: number = 0): void {
+		if (["Youtube"].includes(track.type)) {
 			// use ytdl to play youtube tracks. Jump to next track if error happens
 			try {
-				this.dispatcher = this.voiceConnection.play(await ytdl(track.url), {
-					type: "opus",
-					bitrate: 320,
-					volume: false,
+				const stream = ytdl(track.url, {
+					filter: "audioonly",
+					opusEncoded: true,
+					seek: this.dispatcher
+						? (this.dispatcher.streamTime +
+								seekTime +
+								(track.seekedTime ? track.seekedTime : 0)) /
+						  1000
+						: seekTime,
 				});
+
+				// remove existing dispatcher if there is one
+				if (this.dispatcher) this.dispatcher.destroy();
+
+				setTimeout(() => {
+					this.dispatcher = this.voiceConnection.play(stream, {
+						type: "opus",
+						bitrate: 320,
+						volume: false,
+					});
+					this.state = "playing";
+					// set current track
+					this.currentTrack = track;
+					if (seekTime === 0) {
+						// emit a new event each time track start playing and not seeking
+						this.emit("nowPlaying", this.currentTrack);
+					} else {
+						// add seeked time to the current track
+						if (track.seekedTime) {
+							track.seekedTime += seekTime;
+						} else {
+							track.seekedTime = seekTime;
+						}
+					}
+					this.registerDispatcherEventListeners();
+				}, 1000);
 			} catch (e) {
-				this.playTrack();
+				console.log(e);
+				this.checkoutQueue();
 			}
 		} else {
 			// use webm link to play tracks from themes.moe
@@ -241,13 +287,17 @@ export class RemPlayer extends EventEmitter {
 				bitrate: 320,
 				volume: false,
 			});
+
+			this.state = "playing";
+
+			// emit a new event each time track start playing
+			this.emit("nowPlaying", this.currentTrack);
+
+			this.registerDispatcherEventListeners();
 		}
+	}
 
-		this.state = "playing";
-
-		// emit a new event each time track start playing
-		this.emit("nowPlaying", this.currentTrack);
-
+	private registerDispatcherEventListeners(): void {
 		// when dispatcher is not initialized, stop the player
 		if (!this.dispatcher) {
 			this.emit("error", { code: "Dispatcher is not initialized" });
@@ -257,9 +307,9 @@ export class RemPlayer extends EventEmitter {
 
 		// register event listener for the dispatcher
 		this.dispatcher.on("finish", () => {
-			// if there are tracks to play call playTrack() again
+			// if there are tracks to play call checkoutQueue() again
 			if (this.queue.length > 0) {
-				this.playTrack();
+				this.checkoutQueue();
 			} else {
 				// emit an event and disconnect from voice channel when queue is over
 				this.emit("queueFinished");
