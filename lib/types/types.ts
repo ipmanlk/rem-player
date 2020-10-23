@@ -19,6 +19,7 @@ export interface Track {
 	url: string;
 	seekedTime?: number;
 	duration: number | false;
+	artist?: string;
 }
 
 export interface DatabaseRecord {

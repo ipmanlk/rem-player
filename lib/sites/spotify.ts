@@ -1,9 +1,8 @@
 import { getInfo } from "@ipmanlk/spotify-grab";
+import { trace } from "console";
 import { Track } from "../types/types";
 
-export const getTracks = async (
-	spotifyUrl: string
-): Promise<Array<Track> | undefined> => {
+export const getTracks = async (spotifyUrl: string): Promise<Array<Track>> => {
 	const data = await getInfo(spotifyUrl).catch((error) => {
 		throw error;
 	});
@@ -23,6 +22,9 @@ export const getTracks = async (
 						duration: data.track.duration ? data.track.duration : false,
 						url: data.track.uri ? data.track.uri : "",
 						type: "Spotify",
+						artist: data.track.artists
+							? data.track.artists.map((artist) => artist.name).join(", ")
+							: "",
 					},
 				];
 			}
@@ -34,6 +36,9 @@ export const getTracks = async (
 						duration: track.duration,
 						url: track.uri ? track.uri : "",
 						type: "Spotify",
+						artists: track.artists
+							? track.artists.map((a) => a.name).join(", ")
+							: "",
 					} as Track;
 				});
 			}
@@ -46,6 +51,9 @@ export const getTracks = async (
 						duration: track.duration,
 						url: track.uri ? track.uri : "",
 						type: "Spotify",
+						artists: track.artists
+							? track.artists.map((a) => a.name).join(", ")
+							: "",
 					} as Track;
 				});
 			}
@@ -58,9 +66,14 @@ export const getTracks = async (
 						duration: track.duration,
 						url: track.uri ? track.uri : "",
 						type: "Spotify",
+						artists: track.artists
+							? track.artists.map((a) => a.name).join(", ")
+							: "",
 					} as Track;
 				});
 			}
 			break;
 	}
+
+	throw "Unable to find any tracks!";
 };

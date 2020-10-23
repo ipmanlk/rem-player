@@ -6,7 +6,7 @@ import {
 	VoiceChannel,
 } from "discord.js";
 import ytdl from "discord-ytdl-core";
-import * as youtube from "./sites/youtube";
+import { getTracks } from "./sites";
 import * as themesMoe from "./sites/themes.moe";
 import { moveIndex } from "./utils/utils";
 import { Track, State, PlayerError } from "./types/types";
@@ -50,14 +50,13 @@ export class RemPlayer extends EventEmitter {
 		return this.voiceConnection.channel;
 	}
 
-	playYoutubeTracks(keywordOrUrl: string): void | PlayerError {
+	playTracks(keywordOrUrl: string): void | PlayerError {
 		// if state is not paused and keywordOrUrl is not provided
 		if (!keywordOrUrl || keywordOrUrl.trim() == "") {
 			return { code: "keywordEmpty" };
 		}
 
-		youtube
-			.getTracks(keywordOrUrl)
+		getTracks(keywordOrUrl)
 			.then((track) => {
 				// push to global tracks
 				this.addTracksToQueue(track);
@@ -65,7 +64,7 @@ export class RemPlayer extends EventEmitter {
 				if (this.state === "stopped") this.checkoutQueue();
 			})
 			.catch((e) => {
-				this.emit("youtubeFailed");
+				this.emit("trackFindFailed");
 				this.emit("error", e);
 			});
 	}
@@ -224,6 +223,17 @@ export class RemPlayer extends EventEmitter {
 			const trackIndex = position - 1;
 			track = this.queue[trackIndex];
 			this.queue = this.queue.filter((t, index) => index !== trackIndex);
+		}
+
+		// if this is a spotify track, use youtube to play it
+		if (track.type === "Spotify") {
+			this.emit("spotifyYtSearching");
+			const ytTrack = await getTracks(
+				`${track.name} ${track.artist}`
+			).catch((e) => {});
+			if (ytTrack && ytTrack.length) {
+				track = ytTrack[0];
+			}
 		}
 
 		// on error, jump to next track
