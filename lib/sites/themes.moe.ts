@@ -46,7 +46,8 @@ export const getTracks = async (animeName: string): Promise<Array<Track>> => {
 			type: theme.themeType,
 			name: theme.themeName,
 			url: theme.mirror.mirrorURL,
-		};
+			duration: false,
+		} as Track;
 	});
 
 	if (tracks.length == 0) throw `No tracks found for ${animeName}`;

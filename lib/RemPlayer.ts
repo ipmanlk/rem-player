@@ -279,7 +279,7 @@ export class RemPlayer extends EventEmitter {
 					this.registerDispatcherEventListeners();
 				}, 1000);
 			} catch (e) {
-				console.log(e);
+				console.log("YTDL Error: ", e);
 				this.checkoutQueue();
 			}
 		} else {
