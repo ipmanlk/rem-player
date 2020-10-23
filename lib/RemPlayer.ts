@@ -244,12 +244,13 @@ export class RemPlayer extends EventEmitter {
 				const stream = ytdl(track.url, {
 					filter: "audioonly",
 					opusEncoded: true,
-					seek: this.dispatcher
-						? (this.dispatcher.streamTime +
-								seekTime +
-								(track.seekedTime ? track.seekedTime : 0)) /
-						  1000
-						: seekTime,
+					seek:
+						this.dispatcher && seekTime > 0
+							? (this.dispatcher.streamTime +
+									seekTime +
+									(track.seekedTime ? track.seekedTime : 0)) /
+							  1000
+							: seekTime,
 				});
 
 				// remove existing dispatcher if there is one
