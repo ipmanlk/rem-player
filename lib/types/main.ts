@@ -15,7 +15,7 @@ export interface PlayerError {
 
 export interface Track {
 	name: string;
-	type: "spotify" | "themes.moe" | "youtube";
+	type: "spotify" | "themesmoe" | "youtube" | "mp3hunter";
 	uri: string;
 	getYtUrl?(keywordOrUrl?: string): Promise<string | false>;
 	seekedTime?: number;

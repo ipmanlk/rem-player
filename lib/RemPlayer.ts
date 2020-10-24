@@ -9,6 +9,7 @@ import ytdl from "discord-ytdl-core";
 import { getTracks } from "@ipmanlk/rem-track-hunter";
 import { moveIndex } from "./utils/utils";
 import { Track, State, PlayerError } from "./types/main";
+import { TrackHunterOptions } from "@ipmanlk/rem-track-hunter/dist/types/general";
 
 export class RemPlayer extends EventEmitter {
 	private queue: Array<Track> = [];
@@ -55,14 +56,16 @@ export class RemPlayer extends EventEmitter {
 		return this.voiceConnection.channel;
 	}
 
-	playTracks(keywordOrUrl: string): void | PlayerError {
+	playTracks(
+		keywordOrUrl: string,
+		options: TrackHunterOptions
+	): void | PlayerError {
 		// if state is not paused and keywordOrUrl is not provided
 		if (!keywordOrUrl || keywordOrUrl.trim() == "") {
 			return { code: "keywordEmpty" };
 		}
-
 		this.emit("trackFindStart");
-		getTracks(keywordOrUrl)
+		getTracks(keywordOrUrl, options)
 			.then((track) => {
 				// push to global tracks
 				this.addTracksToQueue(track);
@@ -74,28 +77,6 @@ export class RemPlayer extends EventEmitter {
 				this.emit("error", e);
 			});
 	}
-
-	playAnimeTracks(animeName: string): void | PlayerError {
-		// if anime name is not provided
-		if (!animeName || animeName.trim() == "") {
-			return { code: "keywordEmpty" };
-		}
-
-		this.emit("trackFindStart");
-		getTracks(animeName, { type: "themes.moe" })
-			.then((tracks) => {
-				// push to global tracks
-				this.addTracksToQueue(tracks);
-				// start playing first track if state is stopped
-				if (this.state === "stopped") this.checkoutQueue();
-			})
-			.catch((e) => {
-				this.emit("trackFindFailed");
-				this.emit("error", e);
-			});
-	}
-
-	playThemesMoeTracks(): void {}
 
 	addTracksToQueue(tracks: Array<Track>): Track | number | PlayerError {
 		if (this.queue.length <= 100) {
@@ -364,7 +345,7 @@ export class RemPlayer extends EventEmitter {
 				console.log(e);
 			});
 		} else {
-			this.emit("queueFinished");
+			// this.emit("queueFinished");
 			this.voiceConnection.disconnect();
 		}
 		this.emit("error", "Player failed to play the track.");
