@@ -6,10 +6,9 @@ import {
 	VoiceChannel,
 } from "discord.js";
 import ytdl from "discord-ytdl-core";
-import { getTracks } from "./sites";
-import * as themesMoe from "./sites/themes.moe";
+import { getTracks } from "@ipmanlk/rem-track-hunter";
 import { moveIndex } from "./utils/utils";
-import { Track, State, PlayerError } from "./types/types";
+import { Track, State, PlayerError } from "./types/main";
 
 export class RemPlayer extends EventEmitter {
 	private queue: Array<Track> = [];
@@ -24,6 +23,16 @@ export class RemPlayer extends EventEmitter {
 		super();
 		this.voiceConnection = voiceConnection;
 		this.textChannel = textChannel;
+
+		// listen to Promise Rejections from ytdl packages and handle them
+		process.on("unhandledRejection", (e) => {
+			console.log("crash prevented (unhandledRejection):", e);
+
+			// if playing, jump to next track
+			if (this.queue.length > 0 && this.state === "playing") {
+				this.checkoutQueue();
+			}
+		});
 	}
 
 	getQueue(): Array<Track> {
@@ -56,6 +65,7 @@ export class RemPlayer extends EventEmitter {
 			return { code: "keywordEmpty" };
 		}
 
+		this.emit("trackFindStart");
 		getTracks(keywordOrUrl)
 			.then((track) => {
 				// push to global tracks
@@ -75,14 +85,16 @@ export class RemPlayer extends EventEmitter {
 			return { code: "keywordEmpty" };
 		}
 
-		themesMoe
-			.getTracks(animeName)
+		this.emit("trackFindStart");
+		getTracks(animeName, { type: "themes.moe" })
 			.then((tracks) => {
+				// push to global tracks
 				this.addTracksToQueue(tracks);
-				if (!this.state) this.checkoutQueue();
+				// start playing first track if state is stopped
+				if (this.state === "stopped") this.checkoutQueue();
 			})
 			.catch((e) => {
-				this.emit("themesMoeFailed");
+				this.emit("trackFindFailed");
 				this.emit("error", e);
 			});
 	}
@@ -226,13 +238,21 @@ export class RemPlayer extends EventEmitter {
 		}
 
 		// if this is a spotify track, use youtube to play it
-		if (track.type === "Spotify") {
-			this.emit("spotifyYtSearching");
-			const ytTrack = await getTracks(
-				`${track.name} ${track.artist}`
-			).catch((e) => {});
-			if (ytTrack && ytTrack.length) {
-				track = ytTrack[0];
+		if (track.type === "spotify") {
+			if (!track.getYtUrl) {
+				this.checkoutQueue();
+				return;
+			}
+			const ytUrl = await track.getYtUrl().catch((e) => {
+				this.checkoutQueue();
+				return;
+			});
+
+			if (typeof ytUrl == "string") {
+				track.uri = ytUrl;
+			} else {
+				this.checkoutQueue();
+				return;
 			}
 		}
 
@@ -248,10 +268,10 @@ export class RemPlayer extends EventEmitter {
 	}
 
 	private playTrack(track: Track, seekTime: number = 0): void {
-		if (["Youtube"].includes(track.type)) {
+		if (["youtube", "spotify"].includes(track.type)) {
 			// use ytdl to play youtube tracks. Jump to next track if error happens
 			try {
-				const stream = ytdl(track.url, {
+				const stream = ytdl(track.uri, {
 					filter: "audioonly",
 					opusEncoded: true,
 					seek:
@@ -294,7 +314,7 @@ export class RemPlayer extends EventEmitter {
 			}
 		} else {
 			// use webm link to play tracks from themes.moe
-			this.dispatcher = this.voiceConnection.play(track.url, {
+			this.dispatcher = this.voiceConnection.play(track.uri, {
 				bitrate: 320,
 				volume: false,
 			});
