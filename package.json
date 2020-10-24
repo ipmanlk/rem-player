@@ -1,6 +1,6 @@
 {
   "name": "@ipmanlk/rem-player",
-  "version": "1.0.5",
+  "version": "1.0.8",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "directories": {
@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@discordjs/opus": "^0.3.2",
-    "@ipmanlk/rem-track-hunter": "^1.0.5",
+    "@ipmanlk/rem-track-hunter": "^1.0.6",
     "discord-ytdl-core": "^4.1.0",
     "discord.js": "^12.4.0"
   },

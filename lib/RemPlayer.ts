@@ -27,11 +27,7 @@ export class RemPlayer extends EventEmitter {
 		// listen to Promise Rejections from ytdl packages and handle them
 		process.on("unhandledRejection", (e) => {
 			console.log("crash prevented (unhandledRejection):", e);
-
-			// if playing, jump to next track
-			if (this.queue.length > 0 && this.state === "playing") {
-				this.checkoutQueue();
-			}
+			this.handlePlayErrors();
 		});
 	}
 
@@ -155,7 +151,7 @@ export class RemPlayer extends EventEmitter {
 	}
 
 	removeTrack(position: number): void | PlayerError {
-		if (this.queue[position]) {
+		if (position && this.queue[position - 1]) {
 			const trackIndex = position - 1;
 			this.queue = this.queue.filter((t, index) => index !== trackIndex);
 			this.emit("trackRemoved");
@@ -225,7 +221,7 @@ export class RemPlayer extends EventEmitter {
 			// when track is undefined for some reason, jump to next one
 			if (!firstItem) {
 				this.emit("error", "First track doesn't exist in the queue!.");
-				this.checkoutQueue();
+				this.handlePlayErrors();
 				return;
 			}
 
@@ -240,18 +236,21 @@ export class RemPlayer extends EventEmitter {
 		// if this is a spotify track, use youtube to play it
 		if (track.type === "spotify") {
 			if (!track.getYtUrl) {
-				this.checkoutQueue();
+				console.log("getYtUrl function doesn't exist");
+				this.handlePlayErrors();
 				return;
 			}
 			const ytUrl = await track.getYtUrl().catch((e) => {
-				this.checkoutQueue();
+				console.log("Failed to get the ytURL", e);
+				this.handlePlayErrors();
 				return;
 			});
 
 			if (typeof ytUrl == "string") {
 				track.uri = ytUrl;
 			} else {
-				this.checkoutQueue();
+				console.log("Resolved Youtube url is not a string.");
+				this.handlePlayErrors();
 				return;
 			}
 		}
@@ -260,7 +259,8 @@ export class RemPlayer extends EventEmitter {
 		try {
 			this.playTrack(track);
 		} catch (error) {
-			this.checkoutQueue();
+			console.log(error);
+			this.handlePlayErrors();
 		}
 
 		// push track back to the end when loopQueue=true
@@ -310,7 +310,7 @@ export class RemPlayer extends EventEmitter {
 				}, 1000);
 			} catch (e) {
 				console.log("YTDL Error: ", e);
-				this.checkoutQueue();
+				this.handlePlayErrors();
 			}
 		} else {
 			// use webm link to play tracks from themes.moe
@@ -354,5 +354,17 @@ export class RemPlayer extends EventEmitter {
 
 	private resume(): void {
 		this.dispatcher?.resume();
+	}
+
+	private handlePlayErrors() {
+		if (this.queue.length > 0 && this.state == "playing") {
+			this.checkoutQueue().catch((e) => {
+				console.log(e);
+			});
+		} else {
+			this.emit("queueFinished");
+			this.voiceConnection.disconnect();
+		}
+		this.emit("error", "Player failed to play the track.");
 	}
 }
