@@ -320,6 +320,8 @@ export class RemPlayer extends EventEmitter {
 			});
 
 			this.state = "playing";
+			// set current track
+			this.currentTrack = track;
 
 			// emit a new event each time track start playing
 			this.emit("nowPlaying", this.currentTrack);
