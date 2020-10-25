@@ -6,7 +6,10 @@ export type PlayerErrorCode =
 	| "noDispatcher"
 	| "keywordEmpty"
 	| "invalidPositions"
-	| "queueNotPaused";
+	| "queueNotPaused"
+	| "invalidFilter"
+	| "noActiveFilter"
+	| "alreadyActiveFilter";
 
 export interface PlayerError {
 	code: PlayerErrorCode;
@@ -22,11 +25,6 @@ export interface Track {
 	duration?: number;
 	artist?: string;
 	show?: string;
-}
-
-export interface DatabaseRecord {
-	key: string;
-	tracks: Array<Track>;
 }
 
 export type State = "playing" | "paused" | "stopped";

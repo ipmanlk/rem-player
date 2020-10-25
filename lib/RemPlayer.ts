@@ -20,6 +20,33 @@ export class RemPlayer extends EventEmitter {
 	private state: State = "stopped";
 	private loopQueue: boolean = false;
 
+	// enabled filters from private filters object
+	private activeFilters: Array<string> = [];
+	/**
+	 * Filters for ffmpeg.
+	 * Credits should goto: https://github.com/Androz2091/discord-player/
+	 */
+	private filters: { readonly [key: string]: string } = {
+		bassboost: "bass=g=20,dynaudnorm=f=200",
+		eightD: "apulsator=hz=0.08",
+		vaporwave: "aresample=48000,asetrate=48000*0.8",
+		nightcore: "aresample=48000,asetrate=48000*1.25",
+		phaser: "aphaser=in_gain=0.4",
+		tremolo: "tremolo",
+		vibrato: "vibrato=f=6.5",
+		reverse: "areverse",
+		treble: "treble=g=5",
+		normalizer: "dynaudnorm=f=200",
+		surrounding: "surround",
+		pulsator: "apulsator=hz=1",
+		subboost: "asubboost",
+		karaoke: "stereotools=mlev=0.03",
+		flanger: "flanger",
+		gate: "agate",
+		haas: "haas",
+		mcompand: "mcompand",
+	};
+
 	constructor(voiceConnection: VoiceConnection, textChannel: TextChannel) {
 		super();
 		this.voiceConnection = voiceConnection;
@@ -181,7 +208,7 @@ export class RemPlayer extends EventEmitter {
 		return this.loopQueue;
 	}
 
-	async seek(seekTime: number): Promise<void | PlayerError> {
+	seek(seekTime: number): void | PlayerError {
 		if (!this.dispatcher) {
 			return { code: "noDispatcher" };
 		}
@@ -190,6 +217,49 @@ export class RemPlayer extends EventEmitter {
 		if (!track) return { code: "trackNotFound" };
 
 		this.playTrack(track, seekTime);
+	}
+
+	applyFilter(filterName: string): void | PlayerError {
+		if (this.filters[filterName]) {
+			if (!this.activeFilters.includes(filterName)) {
+				this.activeFilters.push(filterName);
+				if (this.dispatcher && this.currentTrack) {
+					this.seek(this.dispatcher.streamTime);
+				}
+			} else {
+				return { code: "alreadyActiveFilter" };
+			}
+		} else {
+			return { code: "invalidFilter" };
+		}
+	}
+
+	removeFilter(filterName: string): void | PlayerError {
+		if (this.filters[filterName]) {
+			if (this.activeFilters.includes(filterName)) {
+				this.activeFilters = this.activeFilters.filter(
+					(name) => name !== filterName
+				);
+				if (this.dispatcher && this.currentTrack) {
+					this.seek(this.dispatcher.streamTime);
+				}
+			} else {
+				return { code: "noActiveFilter" };
+			}
+		} else {
+			return { code: "invalidFilter" };
+		}
+	}
+
+	clearFilters(): void | PlayerError {
+		if (this.activeFilters.length > 0) {
+			this.activeFilters = [];
+			if (this.dispatcher && this.currentTrack) {
+				this.seek(this.dispatcher.streamTime);
+			}
+		} else {
+			return { code: "noActiveFilter" };
+		}
 	}
 
 	private async checkoutQueue(position: number | false = false): Promise<void> {
@@ -252,9 +322,18 @@ export class RemPlayer extends EventEmitter {
 		if (["youtube", "spotify"].includes(track.type)) {
 			// use ytdl to play youtube tracks. Jump to next track if error happens
 			try {
+				// if there are any filters enabled, get those
+				const encoderArgs = [];
+				if (this.activeFilters.length > 0) {
+					const filterArgs = this.activeFilters.map((af) => this.filters[af]);
+					encoderArgs.push("-af", filterArgs.join(","));
+				}
+
+				// create a new stream
 				const stream = ytdl(track.uri, {
 					filter: "audioonly",
 					opusEncoded: true,
+					encoderArgs: encoderArgs,
 					seek:
 						this.dispatcher && seekTime > 0
 							? (this.dispatcher.streamTime +
